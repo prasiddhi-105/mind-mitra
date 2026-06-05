@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Camera, Send, Home, User, MessageCircle, BookOpen, AlertCircle, Settings, BarChart3, Heart, Moon, Sun } from 'lucide-react';
 import { sendChatMessage } from '../api/chat';
 import AuthScreen from './screens/AuthScreen';
+import { useAppContext } from '../context/AppContext';
 
 const MindMitraApp = () => {
   const [currentScreen, setCurrentScreen] = useState('splash');
-  const [darkMode, setDarkMode] = useState(false);
+  const { darkMode, setDarkMode } = useAppContext();
   const [currentMood, setCurrentMood] = useState(3);
   const [journalText, setJournalText] = useState('');
   const [chatMessages, setChatMessages] = useState([
@@ -142,12 +143,6 @@ const MindMitraApp = () => {
               😊 You seem calm today
             </p>
           </div>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2 rounded-full bg-gray-200 dark:bg-gray-700"
-          >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
@@ -538,6 +533,23 @@ const MindMitraApp = () => {
     </div>
   );
 
+  const showNavbar = currentScreen !== 'splash' && currentScreen !== 'login' && currentScreen !== 'sos';
+
+  const Navbar = () => (
+    <header className={`${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-800'} border-b px-6 py-4 flex justify-between items-center transition-colors duration-300`}>
+      <div className="flex items-center space-x-2">
+        <span className="text-2xl animate-pulse">🌊</span>
+        <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-850'}`}>MindMitra</span>
+      </div>
+      <button
+        onClick={() => setDarkMode(!darkMode)}
+        className={`p-2 rounded-full transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+      >
+        {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      </button>
+    </header>
+  );
+
   const screens: Record<string, React.ReactElement> = {
     splash: <SplashScreen />,
     login: <LoginScreen />,
@@ -555,8 +567,11 @@ const MindMitraApp = () => {
   }
 
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen relative overflow-hidden">
-      {screens[currentScreen]}
+    <div className={`max-w-md mx-auto ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-800'} min-h-screen relative overflow-hidden flex flex-col transition-colors duration-300`}>
+      {showNavbar && <Navbar />}
+      <div className="flex-1 overflow-y-auto">
+        {screens[currentScreen]}
+      </div>
     </div>
   );
 };

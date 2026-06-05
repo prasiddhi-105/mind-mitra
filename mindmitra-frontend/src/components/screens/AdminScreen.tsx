@@ -13,8 +13,8 @@ import { loginUser } from '../../api/auth';
 import {
   fetchAdminStats,
   fetchRecentJournals,
-  JournalEntry,
-  PlatformStats,
+  type JournalEntry,
+  type PlatformStats,
 } from '../../api/admin';
 
 // ─── Constants ───────────────────────────────────────────────────────────────

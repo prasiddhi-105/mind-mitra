@@ -83,4 +83,11 @@ def get_collection(collection_name: str):
     """Get collection instance"""
     if database is None:
         raise RuntimeError("Database not initialized")
-    return database[collection_name] 
+    return database[collection_name]
+
+
+def get_db():
+    """Dependency returning the database instance"""
+    if database is None:
+        raise RuntimeError("Database not initialized")
+    return database 

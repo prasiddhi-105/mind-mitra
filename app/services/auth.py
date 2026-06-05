@@ -4,6 +4,9 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import uuid
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+
 from app.core.config import settings
 from app.models.user import User, UserCreate, UserInDB, TokenData, UserRole
 from app.core.database import get_collection
@@ -141,6 +144,33 @@ class AuthService:
         except Exception as e:
             logger.error(f"Get user by email error: {e}")
             return None
+
+
+# OAuth2 scheme for token authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    """Get current authenticated user"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    token_data = auth_service.verify_token(token)
+    if token_data is None:
+        raise credentials_exception
+
+    try:
+        user = await auth_service.get_user_by_id(token_data.user_id)
+    except Exception:
+        raise credentials_exception
+
+    if user is None:
+        raise credentials_exception
+
+    return user
 
 
 # Global auth service instance

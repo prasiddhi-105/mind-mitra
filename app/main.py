@@ -12,6 +12,26 @@ from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 
 
+tags_metadata = [
+    {
+        "name": "auth",
+        "description": "Authentication endpoints. Use /api/v1/auth/login to obtain bearer tokens and /api/v1/auth/refresh to refresh them. Protected routes require an Authorization header: Bearer <access_token>."
+    },
+    {
+        "name": "chat",
+        "description": "Chatbot messaging endpoints. These routes are protected and require authentication."
+    },
+    {
+        "name": "emotion",
+        "description": "Emotion detection endpoints. These routes are protected and require authentication."
+    },
+    {
+        "name": "journal",
+        "description": "Journal management endpoints. These routes are protected and require authentication."
+    }
+]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
@@ -25,11 +45,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MindMitra API",
-    description="AI-powered mental wellness backend API",
+    description="AI-powered mental wellness backend API.\n\nAuthentication: use /api/v1/auth/login to sign in and receive bearer tokens. Use Authorization: Bearer <token> on protected endpoints. Refresh tokens at /api/v1/auth/refresh.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan
+    lifespan=lifespan,
+    openapi_tags=tags_metadata,
 )
 
 # Security middleware
