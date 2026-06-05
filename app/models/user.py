@@ -67,4 +67,21 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
     user_id: Optional[str] = None
-    role: Optional[UserRole] = None 
+    role: Optional[UserRole] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class TokenValidationResponse(BaseModel):
+    valid: bool = True 

@@ -119,4 +119,9 @@ db.chat_history.createIndex({ "user_id": 1, "created_at": -1 });
 
 db.emergency_contacts.createIndex({ "user_id": 1 });
 
+db.createCollection("password_reset_tokens");
+db.password_reset_tokens.createIndex({ "token_hash": 1 }, { unique: true });
+db.password_reset_tokens.createIndex({ "user_id": 1 });
+db.password_reset_tokens.createIndex({ "expires_at": 1 }, { expireAfterSeconds: 0 });
+
 print("MindMitra database initialized successfully!"); 

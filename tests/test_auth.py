@@ -1,9 +1,55 @@
 
+import asyncio
 import pytest
+from datetime import datetime, timedelta
+from urllib.parse import parse_qs, urlparse
+
 from fastapi.testclient import TestClient
+
 from app.main import app
+from app.services.auth import auth_service
 
 client = TestClient(app)
+
+PASSWORD_RESET_MESSAGE = (
+    "If an account exists for this email, a reset link has been sent."
+)
+
+
+@pytest.fixture
+def mock_password_reset_email(monkeypatch):
+    sent_emails = []
+
+    async def fake_send_password_reset_email(user_email, user_name, reset_link):
+        sent_emails.append({
+            "email": user_email,
+            "name": user_name,
+            "reset_link": reset_link,
+        })
+        return True
+
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.auth.notification_service.send_password_reset_email",
+        fake_send_password_reset_email,
+    )
+    return sent_emails
+
+
+def _register_user(email: str, password: str = "testpassword123"):
+    user_data = {
+        "email": email,
+        "name": "Reset Test User",
+        "password": password,
+        "role": "user",
+    }
+    response = client.post("/api/v1/auth/register", json=user_data)
+    assert response.status_code == 200
+    return user_data
+
+
+def _extract_token_from_link(reset_link: str) -> str:
+    query = parse_qs(urlparse(reset_link).query)
+    return query["token"][0]
 
 
 def test_health_check():
@@ -135,4 +181,122 @@ def test_protected_endpoint_with_token():
     
     data = response.json()
     assert data["email"] == user_data["email"]
-    assert data["name"] == user_data["name"] 
+    assert data["name"] == user_data["name"]
+
+
+def test_forgot_password_known_email(mock_password_reset_email):
+    """Test password reset request for a registered email."""
+    email = "forgot-known@example.com"
+    _register_user(email)
+
+    response = client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": email},
+    )
+    assert response.status_code == 200
+    assert response.json()["message"] == PASSWORD_RESET_MESSAGE
+    assert len(mock_password_reset_email) == 1
+    assert mock_password_reset_email[0]["email"] == email
+
+
+def test_forgot_password_unknown_email(mock_password_reset_email):
+    """Test password reset request does not reveal unknown emails."""
+    response = client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": "unknown@example.com"},
+    )
+    assert response.status_code == 200
+    assert response.json()["message"] == PASSWORD_RESET_MESSAGE
+    assert len(mock_password_reset_email) == 0
+
+
+def test_reset_password_success(mock_password_reset_email):
+    """Test successful password reset and login with new password."""
+    email = "reset-success@example.com"
+    old_password = "testpassword123"
+    new_password = "newpassword456"
+    _register_user(email, old_password)
+
+    forgot_response = client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": email},
+    )
+    assert forgot_response.status_code == 200
+
+    token = _extract_token_from_link(mock_password_reset_email[0]["reset_link"])
+
+    validate_response = client.get(
+        "/api/v1/auth/reset-password/validate",
+        params={"token": token},
+    )
+    assert validate_response.status_code == 200
+    assert validate_response.json()["valid"] is True
+
+    reset_response = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": token, "new_password": new_password},
+    )
+    assert reset_response.status_code == 200
+    assert reset_response.json()["message"] == "Password reset successfully"
+
+    old_login = client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": old_password},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": new_password},
+    )
+    assert new_login.status_code == 200
+    assert "access_token" in new_login.json()
+
+
+def test_reset_password_expired_token(mock_password_reset_email):
+    """Test reset fails when token has expired."""
+    email = "reset-expired@example.com"
+    _register_user(email)
+
+    client.post("/api/v1/auth/forgot-password", json={"email": email})
+    token = _extract_token_from_link(mock_password_reset_email[0]["reset_link"])
+
+    token_hash = auth_service._hash_reset_token(token)
+    past = datetime.utcnow() - timedelta(minutes=1)
+
+    async def expire_token():
+        await auth_service.reset_tokens_collection.update_one(
+            {"token_hash": token_hash},
+            {"$set": {"expires_at": past}},
+        )
+
+    asyncio.run(expire_token())
+
+    response = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": token, "new_password": "newpassword456"},
+    )
+    assert response.status_code == 400
+    assert "Invalid or expired reset token" in response.json()["detail"]
+
+
+def test_reset_password_reused_token(mock_password_reset_email):
+    """Test reset token cannot be used twice."""
+    email = "reset-reuse@example.com"
+    _register_user(email)
+
+    client.post("/api/v1/auth/forgot-password", json={"email": email})
+    token = _extract_token_from_link(mock_password_reset_email[0]["reset_link"])
+
+    first_reset = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": token, "new_password": "newpassword456"},
+    )
+    assert first_reset.status_code == 200
+
+    second_reset = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": token, "new_password": "anotherpassword789"},
+    )
+    assert second_reset.status_code == 400
+    assert "Invalid or expired reset token" in second_reset.json()["detail"] 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Mail, User, Lock } from 'lucide-react';
 
 type AuthMode = 'signin' | 'register';
@@ -197,6 +198,18 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, onRegister, loading =
             {showPassword ? <EyeOff className="h-5 w-5" style={{ height: '20px', width: '20px' }} /> : <Eye className="h-5 w-5" style={{ height: '20px', width: '20px' }} />}
           </button>
         </GlassField>
+
+        {mode === 'signin' && (
+          <p className="text-right text-sm" style={{ textAlign: 'right', margin: '-8px 0 0', fontSize: '14px' }}>
+            <Link
+              to="/forgot-password"
+              className="font-semibold text-[#134e4a] hover:underline"
+              style={{ color: '#134e4a', fontWeight: 600, textDecoration: 'none' }}
+            >
+              Forgot password?
+            </Link>
+          </p>
+        )}
 
         {mode === 'register' && (
           <GlassField label="Confirm password">

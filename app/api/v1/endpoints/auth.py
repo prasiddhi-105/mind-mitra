@@ -2,9 +2,25 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Optional
 
-from app.models.user import User, UserCreate, Token, TokenData, UserRole
+from app.core.config import settings
+from app.models.user import (
+    User,
+    UserCreate,
+    Token,
+    TokenData,
+    UserRole,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    MessageResponse,
+    TokenValidationResponse,
+)
 from app.services.auth import auth_service
+from app.services.notifications import notification_service
 from app.core.logging import get_logger
+
+PASSWORD_RESET_RESPONSE = (
+    "If an account exists for this email, a reset link has been sent."
+)
 
 logger = get_logger("auth_endpoints")
 
@@ -291,6 +307,75 @@ async def get_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile and enter the following details:
         Authorization: Bearer <access_token>"""
     return current_user
+
+
+@router.post(
+    "/forgot-password",
+    summary="Request a password reset email",
+    response_model=MessageResponse,
+)
+async def forgot_password(request: ForgotPasswordRequest):
+    """Send a password reset link if the email belongs to an active account."""
+    try:
+        user = await auth_service.get_user_by_email(request.email)
+        if user and user.is_active:
+            raw_token = await auth_service.create_password_reset_token(user.id)
+            reset_link = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+            await notification_service.send_password_reset_email(
+                user.email, user.name, reset_link
+            )
+            logger.info(f"Password reset requested for: {user.email}")
+        return MessageResponse(message=PASSWORD_RESET_RESPONSE)
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.get(
+    "/reset-password/validate",
+    summary="Validate a password reset token",
+    response_model=TokenValidationResponse,
+)
+async def validate_reset_password_token(token: str):
+    """Check whether a reset token is valid and not expired."""
+    valid = await auth_service.validate_reset_token(token)
+    if not valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+    return TokenValidationResponse(valid=True)
+
+
+@router.post(
+    "/reset-password",
+    summary="Reset password using a valid token",
+    response_model=MessageResponse,
+)
+async def reset_password(request: ResetPasswordRequest):
+    """Set a new password using a valid, unexpired reset token."""
+    try:
+        success = await auth_service.reset_password(
+            request.token, request.new_password
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token",
+            )
+        logger.info("Password reset completed successfully")
+        return MessageResponse(message="Password reset successfully")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.post(

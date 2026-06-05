@@ -193,6 +193,61 @@ class NotificationService:
             logger.error(f"Failed to send welcome email: {e}")
             return False
     
+    async def send_password_reset_email(
+        self, user_email: str, user_name: str, reset_link: str
+    ) -> bool:
+        """Send password reset link email."""
+        try:
+            subject = "MindMitra - Reset Your Password"
+            expire_minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+
+            message = f"""
+Hi {user_name},
+
+We received a request to reset your MindMitra password.
+
+Reset your password by visiting this link (expires in {expire_minutes} minutes):
+{reset_link}
+
+If you did not request this, you can safely ignore this email.
+
+Best regards,
+The MindMitra Team
+"""
+
+            html_message = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #1e293b;">
+                <h2 style="color: #134e4a;">Reset Your Password</h2>
+                <p>Hi {user_name},</p>
+                <p>We received a request to reset your MindMitra password.</p>
+                <p>
+                    <a href="{reset_link}"
+                       style="display: inline-block; padding: 12px 24px; background-color: #134e4a;
+                              color: #ffffff; text-decoration: none; border-radius: 8px;
+                              font-weight: 600;">
+                        Reset Password
+                    </a>
+                </p>
+                <p style="color: #64748b; font-size: 14px;">
+                    This link expires in {expire_minutes} minutes.
+                    If you did not request a password reset, you can safely ignore this email.
+                </p>
+                <p>Best regards,<br>The MindMitra Team</p>
+            </body>
+            </html>
+            """
+
+            return await self.send_email(
+                to=user_email,
+                subject=subject,
+                message=message,
+                html_message=html_message,
+            )
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
+            return False
+
     async def send_daily_reminder(self, user_email: str, user_name: str) -> bool:
         """Send daily journaling reminder"""
         try:
