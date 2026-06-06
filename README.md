@@ -276,3 +276,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 For support, email support@mindmitra.com or create an issue in the repository. 
+
+## 🐳 Local Development Setup
+
+To run the application locally using Docker, follow these steps:
+
+1. **Clone the repository:**
+```bash
+   git clone [https://github.com/1809gaurav/mind-mitra.git](https://github.com/1809gaurav/mind-mitra.git)
+   cd mind-mitra
+
+docker compose up --build
