@@ -46,6 +46,7 @@ async def create_indexes():
         await database.journal_entries.create_index("user_id")
         await database.journal_entries.create_index([("user_id", 1), ("created_at", -1)])
         await database.journal_entries.create_index("created_at")
+        await database.journal_entries.create_index([("user_id", 1), ("emotion_label", 1)])
         
         # SOS alerts indexes
         await database.sos_alerts.create_index("user_id")

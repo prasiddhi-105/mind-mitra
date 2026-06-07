@@ -1,32 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { Camera, Send, Home, User, MessageCircle, BookOpen, AlertCircle, BarChart3, Heart, Moon, Sun } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Camera, Send, Home, User, MessageCircle, BookOpen, AlertCircle, Settings, BarChart3, Heart, Moon, Sun, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { sendChatMessage } from '../api/chat';
-import { loginUser, registerUser } from '../api/auth';
 import AuthScreen from './screens/AuthScreen';
-import ProfileScreen from './screens/ProfileScreen';
 import { useAppContext } from '../context/AppContext';
+import {
+  fetchJournalEntries,
+  saveJournalEntry,
+  deleteJournalEntry,
+  getEmotionConfig,
+  formatConfidence,
+  type JournalEntryResponse,
+} from '../api/journal';
 
 const MindMitraApp = () => {
   const [currentScreen, setCurrentScreen] = useState('splash');
-  const { darkMode, setDarkMode, userName, token, setToken, refreshUser } = useAppContext();
+  const { darkMode, setDarkMode } = useAppContext();
   const [currentMood, setCurrentMood] = useState(3);
   const [journalText, setJournalText] = useState('');
   const [chatMessages, setChatMessages] = useState([
     { type: 'bot', message: "Hi! I'm here to support you. How are you feeling today?" }
   ]);
   const [newMessage, setNewMessage] = useState('');
+  const [userName] = useState('Alex');
   const [isRecording, setIsRecording] = useState(false);
+  const [, setIsAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState('');
   const [loading, setLoading] = useState(false);
-  const authToken = token;
+  const [journalEntries, setJournalEntries] = useState<JournalEntryResponse[]>([]);
+  const [journalSaving, setJournalSaving] = useState(false);
+  const [journalSaveSuccess, setJournalSaveSuccess] = useState(false);
+  const [journalError, setJournalError] = useState<string | null>(null);
+  const [journalLoading, setJournalLoading] = useState(false);
 
   useEffect(() => {
     if (currentScreen === 'splash') {
-      const timer = setTimeout(() => {
-        setCurrentScreen(token ? 'home' : 'login');
-      }, 3000);
+      const timer = setTimeout(() => setCurrentScreen('login'), 3000);
       return () => clearTimeout(timer);
     }
-  }, [currentScreen, token]);
+  }, [currentScreen]);
 
   const addChatMessage = async (message: string, type = 'user') => {
     setChatMessages(prev => [...prev, { type, message }]);
@@ -57,53 +68,62 @@ const MindMitraApp = () => {
     }
   };
 
-  const handleLogin = async (email: string, password: string) => {
+  const handleLogin = async (_email: string, _password: string) => {
     try {
       setLoading(true);
-      const res = await loginUser(email, password);
-      setToken(res.data.access_token, res.data.refresh_token);
-      await refreshUser();
+      // Mock login for now - integrate with your auth API
+      setAuthToken('mock-token');
+      setIsAuthenticated(true);
       setCurrentScreen('home');
     } catch (error) {
       console.error('Login error:', error);
-      alert('Login failed. Please check your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegister = async (email: string, password: string, name: string) => {
+  const loadJournalEntries = useCallback(async () => {
+    if (!authToken) return;
+    setJournalLoading(true);
     try {
-      setLoading(true);
-      await registerUser({ email, password, name });
-      const res = await loginUser(email, password);
-      setToken(res.data.access_token, res.data.refresh_token);
-      await refreshUser();
-      setCurrentScreen('home');
-    } catch (error) {
-      console.error('Registration error:', error);
-      alert('Registration failed. The email may already be in use.');
+      const res = await fetchJournalEntries(authToken);
+      setJournalEntries(res.data);
+    } catch (err) {
+      console.error('Failed to fetch journal entries:', err);
     } finally {
-      setLoading(false);
+      setJournalLoading(false);
     }
-  };
+  }, [authToken]);
 
   const handleJournalSave = async () => {
     if (!journalText.trim() || !authToken) return;
     
+    setJournalSaving(true);
+    setJournalError(null);
+    setJournalSaveSuccess(false);
+
     try {
-      setLoading(true);
-      // Mock API call for now - integrate with your backend
-      // await saveJournalEntry({ mood: currentMood, text: journalText }, authToken);
+      const res = await saveJournalEntry({ mood: currentMood, text: journalText }, authToken);
+      setJournalEntries(prev => [res.data, ...prev]);
       setJournalText('');
-      setCurrentScreen('home');
-    } catch (error) {
+      setCurrentMood(3);
+      setJournalSaveSuccess(true);
+      setTimeout(() => setJournalSaveSuccess(false), 3000);
+    } catch (error: any) {
       console.error('Journal save error:', error);
-      // Still clear and navigate on error for demo
-      setJournalText('');
-      setCurrentScreen('home');
+      setJournalError(error?.response?.data?.detail || 'Failed to save entry');
     } finally {
-      setLoading(false);
+      setJournalSaving(false);
+    }
+  };
+
+  const handleJournalDelete = async (entryId: string) => {
+    if (!authToken) return;
+    try {
+      await deleteJournalEntry(entryId, authToken);
+      setJournalEntries(prev => prev.filter(e => e.id !== entryId));
+    } catch (err) {
+      console.error('Delete error:', err);
     }
   };
 
@@ -145,7 +165,7 @@ const MindMitraApp = () => {
   const LoginScreen = () => (
     <AuthScreen
       onSignIn={handleLogin}
-      onRegister={handleRegister}
+      onRegister={(email, password) => handleLogin(email, password)}
       loading={loading}
     />
   );
@@ -264,72 +284,195 @@ const MindMitraApp = () => {
     </div>
   );
 
-  const JournalScreen = () => (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-6`}>
-      <div className="max-w-md mx-auto">
-        <h2 className={`text-2xl font-bold mb-6 text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          How are you feeling?
-        </h2>
-        
-        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-6 shadow-lg mb-6`}>
-          <div className="flex justify-center items-center space-x-4 mb-6">
-            <span className="text-2xl">😢</span>
-            <input
-              type="range"
-              min="1"
-              max="5"
-              value={currentMood}
-              onChange={(e) => setCurrentMood(parseInt(e.target.value))}
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-2xl">😊</span>
-          </div>
-          
-          <div className="text-center mb-4">
-            <span className="text-3xl">
-              {currentMood == 1 ? '😢' : currentMood == 2 ? '😕' : currentMood == 3 ? '😐' : currentMood == 4 ? '🙂' : '😊'}
-            </span>
-          </div>
-          
-          <textarea
-            value={journalText}
-            onChange={(e) => setJournalText(e.target.value)}
-            placeholder="Write about your mood..."
-            className={`w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              darkMode ? 'bg-gray-700 text-white border-gray-600' : ''
-            }`}
-          />
-          
-          <button
-            onClick={handleJournalSave}
-            disabled={loading || !journalText.trim()}
-            className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-medium transition-all duration-300 disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : 'Save Entry'}
-          </button>
-        </div>
+  const JournalScreen = () => {
+    // Load entries when journal screen mounts
+    useEffect(() => {
+      if (journalEntries.length === 0) loadJournalEntries();
+    }, []);
 
-        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-6 shadow-lg`}>
-          <h3 className={`font-medium mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>Recent Entries</h3>
-          <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: 14 }, (_, i) => (
-              <div
-                key={i}
-                className={`aspect-square rounded-lg flex items-center justify-center text-sm ${
-                  i % 3 === 0 ? 'bg-green-100 text-green-600' : 
-                  i % 3 === 1 ? 'bg-yellow-100 text-yellow-600' : 
-                  'bg-red-100 text-red-600'
-                }`}
-              >
-                {20 - i}
+    const moodEmoji = (mood: number) => {
+      const map: Record<number, string> = { 1: '😢', 2: '😕', 3: '😐', 4: '🙂', 5: '😊' };
+      return map[mood] ?? '😐';
+    };
+
+    const formatDate = (dateStr: string): string => {
+      try {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } catch { return ''; }
+    };
+
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-6 pb-24`}>
+        <div className="max-w-md mx-auto">
+          <h2 className={`text-2xl font-bold mb-6 text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            How are you feeling?
+          </h2>
+          
+          {/* ── Compose Card ── */}
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-6 shadow-lg mb-6`}>
+            <div className="flex justify-center items-center space-x-4 mb-6">
+              <span className="text-2xl">😢</span>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                value={currentMood}
+                onChange={(e) => setCurrentMood(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                id="mood-slider-main"
+              />
+              <span className="text-2xl">😊</span>
+            </div>
+            
+            <div className="text-center mb-4">
+              <span className="text-3xl transition-all duration-200">{moodEmoji(currentMood)}</span>
+            </div>
+            
+            <textarea
+              value={journalText}
+              onChange={(e) => setJournalText(e.target.value)}
+              placeholder="Write about your mood..."
+              id="journal-text-main"
+              className={`w-full h-32 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
+                darkMode ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-400' : 'border-gray-300'
+              }`}
+            />
+
+            {/* Error */}
+            {journalError && (
+              <div className="mt-2 p-2 bg-red-100 text-red-700 text-sm rounded-lg">{journalError}</div>
+            )}
+
+            {/* Success with emotion badge */}
+            {journalSaveSuccess && journalEntries[0]?.emotion_analyzed && (
+              <div className={`mt-2 p-3 rounded-lg flex items-center gap-2 ${
+                darkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'
+              }`}>
+                <span className="text-sm">✨ Saved! Detected:</span>
+                {(() => {
+                  const e = journalEntries[0];
+                  const cfg = getEmotionConfig(e.emotion_label);
+                  const bg = darkMode ? cfg.bgDark : cfg.bg;
+                  const text = darkMode ? cfg.textDark : cfg.text;
+                  return (
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${bg} ${text}`}>
+                      <span className="text-sm">{cfg.emoji}</span>
+                      <span className="capitalize">{e.emotion_label}</span>
+                      <span className="opacity-70">· {formatConfidence(e.emotion_confidence)}</span>
+                    </span>
+                  );
+                })()}
               </div>
-            ))}
+            )}
+            
+            <button
+              onClick={handleJournalSave}
+              disabled={journalSaving || !journalText.trim()}
+              id="journal-save-main"
+              className={`w-full mt-4 py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+                journalSaving ? 'bg-blue-400 cursor-wait' : 'bg-green-500 hover:bg-green-600 active:scale-[0.98]'
+              } text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {journalSaving ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing emotion...</>
+              ) : (
+                'Save Entry'
+              )}
+            </button>
+          </div>
+
+          {/* ── Recent Entries ── */}
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-6 shadow-lg`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Recent Entries</h3>
+              <button
+                onClick={loadJournalEntries}
+                disabled={journalLoading}
+                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                title="Refresh entries"
+              >
+                <RefreshCw className={`w-4 h-4 ${journalLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {/* Loading */}
+            {journalLoading && journalEntries.length === 0 && (
+              <div className="space-y-3">
+                {[0,1,2].map(i => (
+                  <div key={i} className={`p-4 rounded-xl animate-pulse ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                    <div className={`h-4 w-24 rounded ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`} />
+                    <div className={`h-3 w-full rounded mt-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty */}
+            {!journalLoading && journalEntries.length === 0 && (
+              <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <span className="text-4xl block mb-2">📝</span>
+                <p className="text-sm">No entries yet. Start journaling above!</p>
+              </div>
+            )}
+
+            {/* Entries list */}
+            {journalEntries.length > 0 && (
+              <div className="space-y-3">
+                {journalEntries.slice(0, 20).map(entry => {
+                  const cfg = getEmotionConfig(entry.emotion_label);
+                  const badgeBg = darkMode ? cfg.bgDark : cfg.bg;
+                  const badgeText = darkMode ? cfg.textDark : cfg.text;
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`p-4 rounded-xl transition-all duration-200 group ${
+                        darkMode ? 'bg-gray-700/50 hover:bg-gray-700/80' : 'bg-gray-50 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg" title={`Mood: ${entry.mood}/5`}>{moodEmoji(entry.mood)}</span>
+                          <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {formatDate(entry.created_at || entry.date)}
+                          </span>
+                        </div>
+                        {entry.emotion_analyzed ? (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${badgeBg} ${badgeText}`}>
+                            <span className="text-sm">{cfg.emoji}</span>
+                            <span className="capitalize">{entry.emotion_label}</span>
+                            <span className="opacity-70">· {formatConfidence(entry.emotion_confidence)}</span>
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${darkMode ? 'bg-gray-700/50 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>—</span>
+                        )}
+                      </div>
+                      <p className={`text-sm line-clamp-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{entry.text}</p>
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => handleJournalDelete(entry.id)}
+                          className={`p-1 rounded opacity-0 group-hover:opacity-100 transition-all ${darkMode ? 'hover:bg-red-900/30 text-red-400' : 'hover:bg-red-50 text-red-400'}`}
+                          title="Delete entry"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
+        <BottomNav />
       </div>
-      <BottomNav />
-    </div>
-  );
+    );
+  };
 
   const ChatScreen = () => (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -424,6 +567,56 @@ const MindMitraApp = () => {
           Cancel
         </button>
       </div>
+    </div>
+  );
+
+  const ProfileScreen = () => (
+    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-6`}>
+      <div className="max-w-md mx-auto">
+        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-6 shadow-lg mb-6 text-center`}>
+          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+            {userName[0]}
+          </div>
+          <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            {userName} Doe
+          </h3>
+          <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>alex@email.com</p>
+        </div>
+        
+        <div className="space-y-3">
+          <button className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-xl shadow-lg text-left hover:scale-105 transition-transform duration-300`}>
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 mr-3 text-red-500" />
+              <span>Edit Emergency Contacts</span>
+            </div>
+          </button>
+          
+          <button 
+            onClick={() => setDarkMode(!darkMode)}
+            className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-xl shadow-lg text-left hover:scale-105 transition-transform duration-300`}
+          >
+            <div className="flex items-center">
+              {darkMode ? <Sun className="w-5 h-5 mr-3 text-yellow-500" /> : <Moon className="w-5 h-5 mr-3 text-blue-500" />}
+              <span>Theme: {darkMode ? 'Dark' : 'Light'}</span>
+            </div>
+          </button>
+          
+          <button
+            onClick={() => {
+              setIsAuthenticated(false);
+              setAuthToken('');
+              setCurrentScreen('login');
+            }}
+            className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-xl shadow-lg text-left hover:scale-105 transition-transform duration-300`}
+          >
+            <div className="flex items-center">
+              <Settings className="w-5 h-5 mr-3 text-gray-500" />
+              <span>Log out</span>
+            </div>
+          </button>
+        </div>
+      </div>
+      <BottomNav />
     </div>
   );
 
@@ -527,12 +720,7 @@ const MindMitraApp = () => {
     journal: <JournalScreen />,
     chat: <ChatScreen />,
     sos: <SOSScreen />,
-    profile: (
-      <>
-        <ProfileScreen onLogoutComplete={() => setCurrentScreen('login')} />
-        <BottomNav />
-      </>
-    ),
+    profile: <ProfileScreen />,
     trends: <TrendsScreen />
   };
 
