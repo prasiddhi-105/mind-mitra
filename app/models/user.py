@@ -30,6 +30,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     emergency_contacts: Optional[List[EmergencyContact]] = None
+    profile_picture_url: Optional[str] = None
 
 
 class UserInDB(UserBase):
@@ -52,6 +53,7 @@ class User(BaseModel):
     role: UserRole
     is_active: bool = True
     emergency_contacts: List[EmergencyContact] = []
+    profile_picture_url: Optional[str] = None
     depression_threshold_notified_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

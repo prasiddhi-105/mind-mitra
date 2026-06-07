@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 from contextlib import asynccontextmanager
 
@@ -37,6 +40,8 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     setup_logging()
+    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+    (Path(settings.UPLOAD_DIR) / "profile_pictures").mkdir(parents=True, exist_ok=True)
     await init_db()
     yield
     # Shutdown
@@ -73,6 +78,9 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1")
+
+# Serve uploaded files (profile pictures, etc.)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 @app.get("/")

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, Brain, MessageCircle, Shield, User, Settings, TrendingUp, Calendar, Mic, Camera, Type, Plus, Send, AlertTriangle, Moon, Sun, ChevronRight, ChevronLeft, Star, Zap, Target } from 'lucide-react';
+import React, { useState } from 'react';
+import { Brain, MessageCircle, TrendingUp, AlertTriangle, Moon, Sun } from 'lucide-react';
 
 const MindMitraApp = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentView, setCurrentView] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
 
   return (
@@ -74,7 +73,7 @@ const MindMitraApp = () => {
               </div>
 
               <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 cursor-pointer hover:shadow-xl transition duration-200`}>
-                <Type className="h-8 w-8 text-green-500 mb-4" />
+                <MessageCircle className="h-8 w-8 text-green-500 mb-4" />
                 <h3 className="font-semibold mb-2">Journal Entry</h3>
                 <p className="text-sm text-gray-600">Write about your thoughts and feelings</p>
               </div>

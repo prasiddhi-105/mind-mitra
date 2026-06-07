@@ -1,8 +1,6 @@
-import React, { useContext } from 'react';
-import { AppContext } from '../../context/AppContext';
+import React from 'react';
 
 const SOSScreen: React.FC = () => {
-  const { darkMode } = useContext(AppContext);
   return (
     <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
       <div className="text-center">

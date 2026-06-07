@@ -10,7 +10,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import settings
-from app.models.user import User, UserCreate, UserInDB, TokenData, UserRole
+from app.models.user import User, UserCreate, UserInDB, UserUpdate, TokenData, UserRole
 from app.core.database import get_collection
 from app.core.logging import get_logger
 
@@ -218,6 +218,28 @@ class AuthService:
             {"$set": {"used_at": now}},
         )
         return True
+
+    async def update_user(self, user_id: str, user_update: UserUpdate) -> Optional[User]:
+        """Update user profile fields"""
+        try:
+            update_data = user_update.model_dump(exclude_unset=True)
+            if not update_data:
+                return await self.get_user_by_id(user_id)
+
+            update_data["updated_at"] = datetime.utcnow()
+
+            result = await self.users_collection.update_one(
+                {"id": user_id},
+                {"$set": update_data},
+            )
+
+            if result.matched_count == 0:
+                return None
+
+            return await self.get_user_by_id(user_id)
+        except Exception as e:
+            logger.error(f"User update error: {e}")
+            return None
 
 
 # OAuth2 scheme for token authentication

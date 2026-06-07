@@ -1,30 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Send, Home, User, MessageCircle, BookOpen, AlertCircle, Settings, BarChart3, Heart, Moon, Sun } from 'lucide-react';
+import { Camera, Send, Home, User, MessageCircle, BookOpen, AlertCircle, BarChart3, Heart, Moon, Sun } from 'lucide-react';
 import { sendChatMessage } from '../api/chat';
+import { loginUser, registerUser } from '../api/auth';
 import AuthScreen from './screens/AuthScreen';
+import ProfileScreen from './screens/ProfileScreen';
 import { useAppContext } from '../context/AppContext';
 
 const MindMitraApp = () => {
   const [currentScreen, setCurrentScreen] = useState('splash');
-  const { darkMode, setDarkMode } = useAppContext();
+  const { darkMode, setDarkMode, userName, token, setToken, refreshUser } = useAppContext();
   const [currentMood, setCurrentMood] = useState(3);
   const [journalText, setJournalText] = useState('');
   const [chatMessages, setChatMessages] = useState([
     { type: 'bot', message: "Hi! I'm here to support you. How are you feeling today?" }
   ]);
   const [newMessage, setNewMessage] = useState('');
-  const [userName] = useState('Alex');
   const [isRecording, setIsRecording] = useState(false);
-  const [, setIsAuthenticated] = useState(false);
-  const [authToken, setAuthToken] = useState('');
   const [loading, setLoading] = useState(false);
+  const authToken = token;
 
   useEffect(() => {
     if (currentScreen === 'splash') {
-      const timer = setTimeout(() => setCurrentScreen('login'), 3000);
+      const timer = setTimeout(() => {
+        setCurrentScreen(token ? 'home' : 'login');
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [currentScreen]);
+  }, [currentScreen, token]);
 
   const addChatMessage = async (message: string, type = 'user') => {
     setChatMessages(prev => [...prev, { type, message }]);
@@ -55,15 +57,32 @@ const MindMitraApp = () => {
     }
   };
 
-  const handleLogin = async (_email: string, _password: string) => {
+  const handleLogin = async (email: string, password: string) => {
     try {
       setLoading(true);
-      // Mock login for now - integrate with your auth API
-      setAuthToken('mock-token');
-      setIsAuthenticated(true);
+      const res = await loginUser(email, password);
+      setToken(res.data.access_token, res.data.refresh_token);
+      await refreshUser();
       setCurrentScreen('home');
     } catch (error) {
       console.error('Login error:', error);
+      alert('Login failed. Please check your email and password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (email: string, password: string, name: string) => {
+    try {
+      setLoading(true);
+      await registerUser({ email, password, name });
+      const res = await loginUser(email, password);
+      setToken(res.data.access_token, res.data.refresh_token);
+      await refreshUser();
+      setCurrentScreen('home');
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Registration failed. The email may already be in use.');
     } finally {
       setLoading(false);
     }
@@ -126,7 +145,7 @@ const MindMitraApp = () => {
   const LoginScreen = () => (
     <AuthScreen
       onSignIn={handleLogin}
-      onRegister={(email, password) => handleLogin(email, password)}
+      onRegister={handleRegister}
       loading={loading}
     />
   );
@@ -408,56 +427,6 @@ const MindMitraApp = () => {
     </div>
   );
 
-  const ProfileScreen = () => (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-6`}>
-      <div className="max-w-md mx-auto">
-        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-6 shadow-lg mb-6 text-center`}>
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-            {userName[0]}
-          </div>
-          <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            {userName} Doe
-          </h3>
-          <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>alex@email.com</p>
-        </div>
-        
-        <div className="space-y-3">
-          <button className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-xl shadow-lg text-left hover:scale-105 transition-transform duration-300`}>
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 mr-3 text-red-500" />
-              <span>Edit Emergency Contacts</span>
-            </div>
-          </button>
-          
-          <button 
-            onClick={() => setDarkMode(!darkMode)}
-            className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-xl shadow-lg text-left hover:scale-105 transition-transform duration-300`}
-          >
-            <div className="flex items-center">
-              {darkMode ? <Sun className="w-5 h-5 mr-3 text-yellow-500" /> : <Moon className="w-5 h-5 mr-3 text-blue-500" />}
-              <span>Theme: {darkMode ? 'Dark' : 'Light'}</span>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => {
-              setIsAuthenticated(false);
-              setAuthToken('');
-              setCurrentScreen('login');
-            }}
-            className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-xl shadow-lg text-left hover:scale-105 transition-transform duration-300`}
-          >
-            <div className="flex items-center">
-              <Settings className="w-5 h-5 mr-3 text-gray-500" />
-              <span>Log out</span>
-            </div>
-          </button>
-        </div>
-      </div>
-      <BottomNav />
-    </div>
-  );
-
   const TrendsScreen = () => (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} p-6`}>
       <div className="max-w-md mx-auto">
@@ -558,7 +527,12 @@ const MindMitraApp = () => {
     journal: <JournalScreen />,
     chat: <ChatScreen />,
     sos: <SOSScreen />,
-    profile: <ProfileScreen />,
+    profile: (
+      <>
+        <ProfileScreen onLogoutComplete={() => setCurrentScreen('login')} />
+        <BottomNav />
+      </>
+    ),
     trends: <TrendsScreen />
   };
 

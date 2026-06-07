@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from pathlib import Path
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Optional
 
@@ -6,6 +8,7 @@ from app.core.config import settings
 from app.models.user import (
     User,
     UserCreate,
+    UserUpdate,
     Token,
     TokenData,
     UserRole,
@@ -307,6 +310,103 @@ async def get_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile and enter the following details:
         Authorization: Bearer <access_token>"""
     return current_user
+
+
+@router.put(
+    "/profile",
+    summary="Update current user profile",
+    response_model=User,
+)
+async def update_profile(
+    user_update: UserUpdate = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Update name, emergency contacts, or profile picture URL."""
+    try:
+        updated_user = await auth_service.update_user(current_user.id, user_update)
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        logger.info(f"Profile updated for user: {current_user.email}")
+        return updated_user
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Profile update error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile",
+        )
+
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+IMAGE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
+
+@router.post(
+    "/profile/picture",
+    summary="Upload profile picture",
+    response_model=User,
+)
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload and save a profile picture for the current user."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Allowed: JPEG, PNG, WebP, GIF",
+        )
+
+    contents = await file.read()
+    if len(contents) > settings.MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Maximum size is {settings.MAX_FILE_SIZE // (1024 * 1024)}MB",
+        )
+
+    try:
+        upload_dir = Path(settings.UPLOAD_DIR) / "profile_pictures"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        extension = IMAGE_EXTENSIONS.get(file.content_type, ".jpg")
+        filename = f"{current_user.id}{extension}"
+        file_path = upload_dir / filename
+
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+        profile_picture_url = f"/uploads/profile_pictures/{filename}"
+        updated_user = await auth_service.update_user(
+            current_user.id,
+            UserUpdate(profile_picture_url=profile_picture_url),
+        )
+
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save profile picture",
+            )
+
+        logger.info(f"Profile picture uploaded for user: {current_user.email}")
+        return updated_user
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Profile picture upload error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload profile picture",
+        )
 
 
 @router.post(

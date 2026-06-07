@@ -16,23 +16,23 @@ const ChatScreen: React.FC = () => {
     { type: 'bot', message: "Hi! I'm here to support you. How are you feeling today?" }
   ]);
   const [newMessage, setNewMessage] = useState('');
-  const [emotion, setEmotion] = useState<string | null>(null);
   const token = localStorage.getItem('token') || '';
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Start camera on mount
   React.useEffect(() => {
+    const video = videoRef.current;
     navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+      if (video) {
+        video.srcObject = stream;
+        video.play();
       }
     });
     // Cleanup: stop camera on unmount
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+      if (video && video.srcObject) {
+        (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
       }
     };
   }, []);
@@ -62,7 +62,6 @@ const ChatScreen: React.FC = () => {
       try {
         const res = await detectEmotionFromImage(imageBase64, token);
         detectedEmotion = res.data.emotion;
-        setEmotion(detectedEmotion);
       } catch {
         detectedEmotion = 'unknown';
       }

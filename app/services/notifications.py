@@ -1,7 +1,7 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
+from typing import Optional, List
 import httpx
 from datetime import datetime
 
@@ -193,188 +193,188 @@ class NotificationService:
             logger.error(f"Failed to send welcome email: {e}")
             return False
     
-async def send_password_reset_email(
-    self, user_email: str, user_name: str, reset_link: str
-) -> bool:
-    """Send password reset link email."""
-    try:
-        subject = "MindMitra - Reset Your Password"
-        expire_minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
-
-        message = f"""
-Hi {user_name},
-
-We received a request to reset your MindMitra password.
-
-Reset your password by visiting this link (expires in {expire_minutes} minutes):
-{reset_link}
-
-If you did not request this, you can safely ignore this email.
-
-Best regards,
-The MindMitra Team
-"""
-
-        html_message = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; color: #1e293b;">
-            <h2 style="color: #134e4a;">Reset Your Password</h2>
-            <p>Hi {user_name},</p>
-            <p>We received a request to reset your MindMitra password.</p>
-            <p>
-                <a href="{reset_link}"
-                   style="display: inline-block; padding: 12px 24px;
-                          background-color: #134e4a;
-                          color: #ffffff;
-                          text-decoration: none;
-                          border-radius: 8px;
-                          font-weight: 600;">
-                    Reset Password
-                </a>
-            </p>
-            <p style="color: #64748b; font-size: 14px;">
-                This link expires in {expire_minutes} minutes.
-                If you did not request a password reset, you can safely ignore this email.
-            </p>
-            <p>Best regards,<br>The MindMitra Team</p>
-        </body>
-        </html>
-        """
-
-        return await self.send_email(
-            to=user_email,
-            subject=subject,
-            message=message,
-            html_message=html_message,
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to send password reset email: {e}")
-        return False
-
-
-async def send_depression_threshold_user_email(
-    self,
-    user_email: str,
-    user_name: str,
-    flag_count: int,
-    threshold: int,
-    resources: list[str],
-) -> bool:
-    """Send a supportive check-in email when the depression flag threshold is reached."""
-    try:
-        subject = "MindMitra: We're here for you"
-
-        resources_text = "\n".join(
-            f"- {resource}" for resource in resources
-        )
-        resources_html = "".join(
-            f"<li>{resource}</li>" for resource in resources
-        )
-
-        message = f"""Hi {user_name},
-
-We've noticed you've been going through a difficult stretch lately. Over the past day, MindMitra has recorded {flag_count} moments of emotional distress.
-
-Helpful resources:
-{resources_text}
-
-If you added emergency contacts in your profile, they have also been gently notified.
-
-With care,
-The MindMitra Team
-"""
-
-        html_message = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <h2 style="color: #4a6fa5;">We're here for you, {user_name}</h2>
-            <p>We've noticed you've been going through a difficult stretch lately.</p>
-            <p>MindMitra has recorded <strong>{flag_count}</strong> moments of emotional distress.</p>
-
-            <h3 style="color: #4a6fa5;">Helpful resources</h3>
-            <ul>{resources_html}</ul>
-
-            <p>With care,<br><strong>The MindMitra Team</strong></p>
-        </body>
-        </html>
-        """
-
-        return await self.send_email(
-            to=user_email,
-            subject=subject,
-            message=message,
-            html_message=html_message,
-        )
-
-    except Exception as e:
-        logger.error(
-            f"Failed to send depression threshold user email: {e}"
-        )
-        return False
+    async def send_password_reset_email(
+        self, user_email: str, user_name: str, reset_link: str
+    ) -> bool:
+        """Send password reset link email."""
+        try:
+            subject = "MindMitra - Reset Your Password"
+            expire_minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    
+            message = f"""
+    Hi {user_name},
+    
+    We received a request to reset your MindMitra password.
+    
+    Reset your password by visiting this link (expires in {expire_minutes} minutes):
+    {reset_link}
+    
+    If you did not request this, you can safely ignore this email.
+    
+    Best regards,
+    The MindMitra Team
+    """
+    
+            html_message = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #1e293b;">
+                <h2 style="color: #134e4a;">Reset Your Password</h2>
+                <p>Hi {user_name},</p>
+                <p>We received a request to reset your MindMitra password.</p>
+                <p>
+                    <a href="{reset_link}"
+                       style="display: inline-block; padding: 12px 24px;
+                              background-color: #134e4a;
+                              color: #ffffff;
+                              text-decoration: none;
+                              border-radius: 8px;
+                              font-weight: 600;">
+                        Reset Password
+                    </a>
+                </p>
+                <p style="color: #64748b; font-size: 14px;">
+                    This link expires in {expire_minutes} minutes.
+                    If you did not request a password reset, you can safely ignore this email.
+                </p>
+                <p>Best regards,<br>The MindMitra Team</p>
+            </body>
+            </html>
+            """
+    
+            return await self.send_email(
+                to=user_email,
+                subject=subject,
+                message=message,
+                html_message=html_message,
+            )
+    
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
+            return False
 
 
-async def send_depression_threshold_contact_email(
-    self,
-    contact_email: str,
-    contact_name: str,
-    user_name: str,
-    flag_count: int,
-    threshold: int,
-    resources: list[str],
-) -> bool:
-    """Notify an emergency contact with a calm, supportive message."""
-    try:
-        subject = f"MindMitra: A gentle check-in about {user_name}"
+    async def send_depression_threshold_user_email(
+        self,
+        user_email: str,
+        user_name: str,
+        flag_count: int,
+        threshold: int,
+        resources: List[str],
+    ) -> bool:
+        """Send a supportive check-in email when the depression flag threshold is reached."""
+        try:
+            subject = "MindMitra: We're here for you"
+    
+            resources_text = "\n".join(
+                f"- {resource}" for resource in resources
+            )
+            resources_html = "".join(
+                f"<li>{resource}</li>" for resource in resources
+            )
+    
+            message = f"""Hi {user_name},
+    
+    We've noticed you've been going through a difficult stretch lately. Over the past day, MindMitra has recorded {flag_count} moments of emotional distress.
+    
+    Helpful resources:
+    {resources_text}
+    
+    If you added emergency contacts in your profile, they have also been gently notified.
+    
+    With care,
+    The MindMitra Team
+    """
+    
+            html_message = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #4a6fa5;">We're here for you, {user_name}</h2>
+                <p>We've noticed you've been going through a difficult stretch lately.</p>
+                <p>MindMitra has recorded <strong>{flag_count}</strong> moments of emotional distress.</p>
+    
+                <h3 style="color: #4a6fa5;">Helpful resources</h3>
+                <ul>{resources_html}</ul>
+    
+                <p>With care,<br><strong>The MindMitra Team</strong></p>
+            </body>
+            </html>
+            """
+    
+            return await self.send_email(
+                to=user_email,
+                subject=subject,
+                message=message,
+                html_message=html_message,
+            )
+    
+        except Exception as e:
+            logger.error(
+                f"Failed to send depression threshold user email: {e}"
+            )
+            return False
 
-        resources_text = "\n".join(
-            f"- {resource}" for resource in resources
-        )
-        resources_html = "".join(
-            f"<li>{resource}</li>" for resource in resources
-        )
 
-        message = f"""Hi {contact_name},
-
-{user_name}, who listed you as an emergency contact on MindMitra, may be going through a difficult time.
-
-Over the past day, our system has noticed {flag_count} signs of emotional distress (threshold: {threshold}).
-
-A simple message or call from you could mean a lot right now.
-
-Helpful resources:
-{resources_text}
-
-With care,
-The MindMitra Team
-"""
-
-        html_message = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <h2 style="color: #4a6fa5;">A gentle check-in about {user_name}</h2>
-            <p>Hi {contact_name},</p>
-
-            <h3 style="color: #4a6fa5;">Helpful resources</h3>
-            <ul>{resources_html}</ul>
-
-            <p>With care,<br><strong>The MindMitra Team</strong></p>
-        </body>
-        </html>
-        """
-
-        return await self.send_email(
-            to=contact_email,
-            subject=subject,
-            message=message,
-            html_message=html_message,
-        )
-
-    except Exception as e:
-        logger.error(
-            f"Failed to send depression threshold contact email: {e}"
-        )
-        return False
+    async def send_depression_threshold_contact_email(
+        self,
+        contact_email: str,
+        contact_name: str,
+        user_name: str,
+        flag_count: int,
+        threshold: int,
+        resources: List[str],
+    ) -> bool:
+        """Notify an emergency contact with a calm, supportive message."""
+        try:
+            subject = f"MindMitra: A gentle check-in about {user_name}"
+    
+            resources_text = "\n".join(
+                f"- {resource}" for resource in resources
+            )
+            resources_html = "".join(
+                f"<li>{resource}</li>" for resource in resources
+            )
+    
+            message = f"""Hi {contact_name},
+    
+    {user_name}, who listed you as an emergency contact on MindMitra, may be going through a difficult time.
+    
+    Over the past day, our system has noticed {flag_count} signs of emotional distress (threshold: {threshold}).
+    
+    A simple message or call from you could mean a lot right now.
+    
+    Helpful resources:
+    {resources_text}
+    
+    With care,
+    The MindMitra Team
+    """
+    
+            html_message = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #4a6fa5;">A gentle check-in about {user_name}</h2>
+                <p>Hi {contact_name},</p>
+    
+                <h3 style="color: #4a6fa5;">Helpful resources</h3>
+                <ul>{resources_html}</ul>
+    
+                <p>With care,<br><strong>The MindMitra Team</strong></p>
+            </body>
+            </html>
+            """
+    
+            return await self.send_email(
+                to=contact_email,
+                subject=subject,
+                message=message,
+                html_message=html_message,
+            )
+    
+        except Exception as e:
+            logger.error(
+                f"Failed to send depression threshold contact email: {e}"
+            )
+            return False
 
     async def send_daily_reminder(self, user_email: str, user_name: str) -> bool:
         """Send daily journaling reminder"""
