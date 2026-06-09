@@ -88,7 +88,6 @@ class JournalEntryResponse(JournalEntryBase):
 
     model_config = {"from_attributes": True}
 
-
 class MoodHistoryPoint(BaseModel):
     date: datetime
     mood: float
@@ -99,6 +98,9 @@ class MoodHistoryResponse(BaseModel):
     period_days: int
     average_mood: Optional[float] = None
     entries: List[MoodHistoryPoint]
+
+    model_config = {"from_attributes": True}
+
 
 # Alias for backward compatibility with journal service
 JournalEntry = JournalEntryResponse

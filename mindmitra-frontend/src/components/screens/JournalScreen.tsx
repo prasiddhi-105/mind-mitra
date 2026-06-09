@@ -94,7 +94,7 @@ const JournalScreen: React.FC = () => {
 
   // Try to get the auth token from localStorage (the app stores it there)
   const getToken = useCallback((): string | null => {
-    return localStorage.getItem('authToken') || localStorage.getItem('token') || null;
+    return localStorage.getItem('token') || null;
   }, []);
 
   // ── Fetch entries on mount ─────────────────────────────────────────────────
