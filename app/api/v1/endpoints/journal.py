@@ -120,7 +120,8 @@ async def _run_emotion_analysis(
 )
 async def list_journal_entries(
     response: Response,
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),  
     current_user: User = Depends(get_current_user),
 ) -> List[JournalEntryResponse]:
     """Retrieve journal entries for the authenticated user."""
@@ -134,10 +135,21 @@ async def list_journal_entries(
     
     # We fetch directly from DB to include emotion fields if they were missed by cache
     collection = get_collection("journal_entries")
-    cursor = collection.find({"user_id": current_user.id}).sort("created_at", -1).limit(limit)
+    total_count = await collection.count_documents({"user_id": current_user.id}) #counting total entries
+    cursor = (
+        collection.find({"user_id": current_user.id})
+        .sort("created_at", -1)
+        .skip(offset)
+        .limit(limit)
+    )
     docs = await cursor.to_list(length=limit)
     
     response.headers["X-Cache"] = "MISS"
+
+    #adding pagination to metadata
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Has-Next"] = str(offset + limit < total_count)
+
     return [_doc_to_response(doc) for doc in docs]
 
 

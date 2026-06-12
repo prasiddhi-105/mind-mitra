@@ -102,5 +102,7 @@ class MoodHistoryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+
+
 # Alias for backward compatibility with journal service
 JournalEntry = JournalEntryResponse
