@@ -15,13 +15,13 @@ def _register_and_login(email: str, name: str = "Profile User"):
         json={
             "email": email,
             "name": name,
-            "password": "testpassword123",
+            "password": "Test@Pass123",
             "role": "user",
         },
     )
     login = client.post(
         "/api/v1/auth/login",
-        data={"username": email, "password": "testpassword123"},
+        data={"username": email, "password": "Test@Pass123"},
     )
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

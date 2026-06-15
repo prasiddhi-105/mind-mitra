@@ -85,6 +85,58 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, onRegister, loading =
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Password strength calculation
+  const getPasswordStrength = () => {
+    const hasMinLength = password.length >= 8;
+    const hasNumber = /[0-9]/.test(password);
+    const hasUpperLower = /[A-Z]/.test(password) && /[a-z]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    let noPersonalInfo = true;
+    if (name.trim() && password.toLowerCase().includes(name.trim().toLowerCase())) {
+      noPersonalInfo = false;
+    }
+    const emailPrefix = email.split('@')[0];
+    if (emailPrefix.trim() && password.toLowerCase().includes(emailPrefix.trim().toLowerCase())) {
+      noPersonalInfo = false;
+    }
+
+    // Common sequences
+    let noSequences = true;
+    const sequentialPatterns = ["12345", "54321", "abcde", "qwerty"];
+    for (const pattern of sequentialPatterns) {
+      if (password.toLowerCase().includes(pattern)) {
+        noSequences = false;
+      }
+    }
+
+    // Repeated characters
+    let noRepeats = true;
+    if (/(.)\1{4,}/.test(password)) {
+      noRepeats = false;
+    }
+
+    const criteria = {
+      minLength: hasMinLength,
+      number: hasNumber,
+      upperLower: hasUpperLower,
+      special: hasSpecial,
+      personalInfo: noPersonalInfo && noSequences && noRepeats && password.length > 0
+    };
+
+    let score = 0;
+    if (hasMinLength) score++;
+    if (hasNumber) score++;
+    if (hasUpperLower) score++;
+    if (hasSpecial) score++;
+    if (criteria.personalInfo) score++;
+
+    return { criteria, score };
+  };
+
+  const { criteria, score } = getPasswordStrength();
+  const isPasswordValid = score === 5;
+
   useEffect(() => {
     // Dynamic background toggle to prevent Safari flex container portal bugs
     const originalHtmlBg = document.documentElement.style.backgroundColor;
@@ -199,6 +251,60 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, onRegister, loading =
           </button>
         </GlassField>
 
+        {mode === 'register' && password.length > 0 && (
+          <div style={{ marginTop: '4px', textAlign: 'left' }}>
+            {/* Strength Bar */}
+            <div style={{ display: 'flex', height: '6px', width: '100%', gap: '4px', borderRadius: '3px', backgroundColor: '#e2e8f0', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: '3px',
+                  transition: 'all 0.3s ease',
+                  width: `${(score / 5) * 100}%`,
+                  backgroundColor: score <= 2 ? '#ef4444' : score <= 4 ? '#eab308' : '#22c55e'
+                }}
+              />
+            </div>
+            {/* Strength Label */}
+            <p style={{ fontSize: '12px', marginTop: '6px', fontWeight: 'bold', color: score <= 2 ? '#ef4444' : score <= 4 ? '#ca8a04' : '#16a34a', margin: '4px 0 0' }}>
+              Password Strength: {score <= 2 ? 'Weak' : score <= 4 ? 'Medium' : 'Strong (Valid)'}
+            </p>
+            {/* Checklist */}
+            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#64748b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: criteria.minLength ? '#22c55e' : '#94a3b8', fontWeight: 'bold' }}>
+                  {criteria.minLength ? '✓' : '○'}
+                </span>
+                <span style={{ color: criteria.minLength ? '#1e293b' : 'inherit' }}>At least 8 characters</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: criteria.number ? '#22c55e' : '#94a3b8', fontWeight: 'bold' }}>
+                  {criteria.number ? '✓' : '○'}
+                </span>
+                <span style={{ color: criteria.number ? '#1e293b' : 'inherit' }}>At least one number (0-9)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: criteria.upperLower ? '#22c55e' : '#94a3b8', fontWeight: 'bold' }}>
+                  {criteria.upperLower ? '✓' : '○'}
+                </span>
+                <span style={{ color: criteria.upperLower ? '#1e293b' : 'inherit' }}>Uppercase & lowercase letters</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: criteria.special ? '#22c55e' : '#94a3b8', fontWeight: 'bold' }}>
+                  {criteria.special ? '✓' : '○'}
+                </span>
+                <span style={{ color: criteria.special ? '#1e293b' : 'inherit' }}>At least one special character</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: criteria.personalInfo ? '#22c55e' : '#94a3b8', fontWeight: 'bold' }}>
+                  {criteria.personalInfo ? '✓' : '○'}
+                </span>
+                <span style={{ color: criteria.personalInfo ? '#1e293b' : 'inherit' }}>No name, email prefix, sequences or repeats</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {mode === 'signin' && (
           <p className="text-right text-sm" style={{ textAlign: 'right', margin: '-8px 0 0', fontSize: '14px' }}>
             <Link
@@ -211,7 +317,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, onRegister, loading =
           </p>
         )}
 
-        {mode === 'register' && (
+        {mode === 'register' && isPasswordValid && (
           <GlassField label="Confirm password">
             <Lock className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" style={{ color: '#94a3b8', flexShrink: 0, height: '20px', width: '20px' }} />
             <input
@@ -243,7 +349,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, onRegister, loading =
           </GlassField>
         )}
 
-        {mode === 'register' && password !== confirmPassword && confirmPassword.length > 0 && (
+        {mode === 'register' && isPasswordValid && password !== confirmPassword && confirmPassword.length > 0 && (
           <p className="text-center text-sm text-red-500" style={{ color: '#ef4444', fontSize: '14px', textAlign: 'center', margin: 0 }}>Passwords do not match</p>
         )}
 
@@ -252,7 +358,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, onRegister, loading =
           disabled={
             loading ||
             (mode === 'register' &&
-              (!name.trim() || !email.trim() || !password || password !== confirmPassword))
+              (!name.trim() || !email.trim() || !isPasswordValid || password !== confirmPassword))
           }
           className="mt-2 w-full rounded-2xl border-0 bg-[#134e4a] py-3.5 text-base font-semibold text-white shadow-lg transition-all hover:bg-[#0f3d3b] hover:shadow-[#134e4a]/15 active:scale-[0.98] disabled:opacity-50"
           style={{

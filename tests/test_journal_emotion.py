@@ -62,12 +62,12 @@ def _register_and_login(client) -> dict:
     """Register a fresh user and return auth headers."""
     email = f"jtest-{uuid.uuid4().hex[:8]}@example.com"
     reg = client.post("/api/v1/auth/register", json={
-        "email": email, "name": "Journal Tester", "password": "testpass123", "role": "user",
+        "email": email, "name": "Journal Tester", "password": "Test@Pass123", "role": "user",
     })
     assert reg.status_code == 200, f"Register failed: {reg.text}"
 
     login = client.post("/api/v1/auth/login", data={
-        "username": email, "password": "testpass123",
+        "username": email, "password": "Test@Pass123",
     })
     assert login.status_code == 200, f"Login failed: {login.text}"
     token = login.json()["access_token"]

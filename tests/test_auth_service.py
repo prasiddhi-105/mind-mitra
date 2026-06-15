@@ -10,8 +10,8 @@ from app.services.auth import auth_service, get_current_user
 
 class TestAuthServiceUnit:
     def test_password_hash_and_verify(self):
-        hashed = auth_service.get_password_hash("testpassword123")
-        assert auth_service.verify_password("testpassword123", hashed)
+        hashed = auth_service.get_password_hash("Test@Pass123")
+        assert auth_service.verify_password("Test@Pass123", hashed)
         assert not auth_service.verify_password("wrongpassword", hashed)
 
     def test_create_and_verify_access_token(self):
@@ -46,7 +46,7 @@ class TestAuthServiceUnit:
         duplicate = UserCreate(
             email=registered_user["email"],
             name="Duplicate",
-            password="testpassword123",
+            password="Test@Pass123",
             role=UserRole.USER,
         )
         result = await auth_service.create_user(duplicate)

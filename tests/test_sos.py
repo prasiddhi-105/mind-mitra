@@ -105,7 +105,7 @@ def sos_client():
 def auth_headers(sos_client):
     """Register + login a test user and return auth headers."""
     email = f"sos-{uuid.uuid4().hex[:8]}@example.com"
-    password = "testpassword123"
+    password = "Test@Pass123"
     sos_client.post(
         "/api/v1/auth/register",
         json={"email": email, "name": "SOS Tester", "password": password, "role": "user"},

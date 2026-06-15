@@ -99,7 +99,7 @@ def user_data(unique_email):
     return {
         "email": unique_email,
         "name": "Test User",
-        "password": "testpassword123",
+        "password": "Test@Pass123",
         "role": "user",
     }
 

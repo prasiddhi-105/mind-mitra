@@ -35,7 +35,7 @@ class TestResetPassword:
         self, client, registered_user, mock_password_reset_email
     ):
         old_password = registered_user["password"]
-        new_password = "newpassword456"
+        new_password = "New@Pass456"
 
         client.post(
             "/api/v1/auth/forgot-password",
@@ -86,7 +86,7 @@ class TestResetPassword:
 
         response = client.post(
             "/api/v1/auth/reset-password",
-            json={"token": token, "new_password": "newpassword456"},
+            json={"token": token, "new_password": "New@Pass456"},
         )
         assert response.status_code == 400
         assert "Invalid or expired reset token" in response.json()["detail"]
@@ -104,13 +104,13 @@ class TestResetPassword:
 
         first_reset = client.post(
             "/api/v1/auth/reset-password",
-            json={"token": token, "new_password": "newpassword456"},
+            json={"token": token, "new_password": "New@Pass456"},
         )
         assert first_reset.status_code == 200
 
         second_reset = client.post(
             "/api/v1/auth/reset-password",
-            json={"token": token, "new_password": "anotherpassword789"},
+            json={"token": token, "new_password": "Another@Pass789"},
         )
         assert second_reset.status_code == 400
         assert "Invalid or expired reset token" in second_reset.json()["detail"]

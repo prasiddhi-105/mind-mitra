@@ -82,7 +82,7 @@ def journal_client():
 @pytest.fixture
 def auth_headers(journal_client):
     email = f"cache-user-{uuid.uuid4().hex[:8]}@example.com"
-    password = "testpassword123"
+    password = "Test@Pass123"
     journal_client.post(
         "/api/v1/auth/register",
         json={"email": email, "name": "Cache User", "password": password, "role": "user"},
