@@ -22,20 +22,20 @@ class ChatbotService:
                 "name": "Cognitive Restructuring",
                 "description": "Identify and challenge negative thoughts",
                 "questions": [
-                    "What evidence supports this thought?",
-                    "What evidence contradicts this thought?",
-                    "What would you tell a friend in this situation?",
-                    "How might you view this differently in a week or month?"
+                    "What facts or signs support this thought?",
+                    "What facts or signs contradict this thought?",
+                    "What would you tell your friend in this situation?",
+                    "How might you view these thoughts differently in a week or month?"
                 ]
             },
             "behavioral_activation": {
                 "name": "Behavioral Activation",
                 "description": "Increase positive activities and behaviors",
                 "questions": [
-                    "What activities used to bring you joy?",
+                    "What are the activities which you usually used to enjoy?",
                     "What small step could you take today?",
                     "How might you reward yourself for trying?",
-                    "What would make today a little better?"
+                    "What activity would make today a little better?"
                 ]
             },
             "mindfulness": {
@@ -43,8 +43,8 @@ class ChatbotService:
                 "description": "Practice present-moment awareness",
                 "questions": [
                     "What are you noticing right now?",
-                    "Can you describe your current emotions without judgment?",
-                    "What physical sensations do you feel?",
+                    "Can you describe your current emotions without any judgment?",
+                    "What physical sensations do you feel right now?",
                     "How might you ground yourself in this moment?"
                 ]
             },
@@ -53,7 +53,7 @@ class ChatbotService:
                 "description": "Break down problems into manageable steps",
                 "questions": [
                     "What specific problem are you facing?",
-                    "What are your options for addressing this?",
+                    "What options do you have for addressing this problem?",
                     "What's the smallest step you could take?",
                     "How might you know if a solution is working?"
                 ]
@@ -63,7 +63,7 @@ class ChatbotService:
         # Crisis responses
         self.crisis_responses = {
             "suicidal": {
-                "immediate": "I'm concerned about what you're sharing. Your life has value, and help is available. Please call the National Suicide Prevention Lifeline at 988 or text HOME to 741741 to reach the Crisis Text Line. You're not alone.",
+                "immediate": "I'm concerned about what you're sharing. Your life has value, and help is available. Please call the National Suicide Prevention Lifeline at 988 or text HOME to 741741 to reach the Crisis Text Line. You are not alone.",
                 "follow_up": "It's important to talk to someone who can provide professional support. Would you be willing to reach out to a mental health professional or trusted person in your life?"
             },
             "self_harm": {
@@ -71,7 +71,7 @@ class ChatbotService:
                 "follow_up": "What might help you feel safer right now? Is there someone you trust who you could talk to?"
             },
             "panic": {
-                "immediate": "I can see you're feeling very overwhelmed. Let's take a moment to breathe together. Try taking slow, deep breaths - inhale for 4 counts, hold for 4, exhale for 4. You're safe right now.",
+                "immediate": "I can see you're feeling very overwhelmed. Let's take a moment to breathe together. Try taking slow, deep breaths - inhale for 4 counts, hold for 4, exhale for 4. You are safe right now.",
                 "follow_up": "What triggered these feelings? How might you ground yourself in this moment?"
             }
         }
@@ -188,22 +188,22 @@ class ChatbotService:
         # Personalized response based on technique
         if technique == "cognitive_restructuring":
             response = f"I notice you're feeling {emotion_analysis.dominant_emotion}. "
-            response += "Let's explore the thoughts behind these feelings. "
+            response += "Let us explore the thoughts behind these feelings. "
             response += technique_info["questions"][0]
         
         elif technique == "behavioral_activation":
-            response = "I hear that you're struggling right now. "
-            response += "Sometimes small actions can help shift our mood. "
+            response = "I hear that you are struggling right now. "
+            response += "Sometimes small actions can help shift our mood a lot. "
             response += technique_info["questions"][0]
         
         elif technique == "mindfulness":
             response = "It sounds like you're experiencing some intense emotions. "
-            response += "Let's take a moment to observe what's happening. "
+            response += "Let's take a moment to observe what is happening. "
             response += technique_info["questions"][0]
         
         else:  # problem_solving
             response = "I can see you're dealing with a challenging situation. "
-            response += "Let's break this down into manageable pieces. "
+            response += "Let's break this down into small, manageable pieces. "
             response += technique_info["questions"][0]
         
         return response
@@ -216,36 +216,36 @@ class ChatbotService:
         # Add technique-specific suggestions
         if technique == "cognitive_restructuring":
             suggestions.extend([
-                "Write down your thoughts and challenge them",
-                "Look for evidence that contradicts negative thoughts",
-                "Consider alternative perspectives"
+                "Write down your thoughts and challenge them - question if they are 100% true.",
+                "Look for facts or signs that prove your negative thoughts are wrong.",
+                "Take a step back and think: What would you tell your close friend who is feeling the same way as you?"
             ])
         elif technique == "behavioral_activation":
             suggestions.extend([
-                "Schedule one enjoyable activity today",
-                "Start with a 5-minute activity",
-                "Track your mood before and after activities"
+                "Pick 1 enjoyable activity to do today.",
+                "Start small: Pick any activity and do it for just 5 minutes.",
+                "Check in with yourself: Track your mood before and after doing activities."
             ])
         elif technique == "mindfulness":
             suggestions.extend([
-                "Try a 3-minute breathing exercise",
-                "Notice 5 things you can see, hear, feel",
-                "Practice non-judgmental observation"
+                "Try a 3-minute deep breathing exercise.",
+                "Look around you and name 5 things you can see, hear, and feel.",
+                "Observe what you are feeling right now without trying to fix it or judge yourself."
             ])
         else:
             suggestions.extend([
-                "Break the problem into smaller steps",
-                "List your options and their pros/cons",
-                "Set a small, achievable goal"
+                "Let's break the problem down into smaller, bite-sized pieces.",
+                "List your options and analyze their pros/cons.",
+                "Set 1 easy, achievable goal for yourself right now."
             ])
         
-        # Add general wellness suggestions
+        # Add General wellness suggestions
         suggestions.extend([
-            "Consider talking to a mental health professional",
-            "Reach out to a trusted friend or family member",
-            "Practice self-care activities"
+            "Think about chatting with a [mental health professional](https://www.google.com/maps/search/mental+health+clinic) who can offer extra guidance.",
+            "Reach out to a trusted friend or family member to talk things through.",
+            "Spend time today doing an activity that brings you comfort."
         ])
-        
+
         return suggestions[:5]  # Limit to 5 suggestions
     
     async def _create_crisis_response(self, user_id: str, message_data: ChatMessageCreate, crisis_response: Dict[str, str]) -> ChatResponse:
@@ -317,10 +317,10 @@ class ChatbotService:
 def get_ai_response(message: str) -> str:
     # Dummy AI response for now
     responses = [
-        "I understand how you're feeling. Can you tell me more about what's troubling you?",
-        "That sounds challenging. Let's work through this together. What thoughts are going through your mind?",
+        "I understand how you are feeling. Can you tell me more about what's troubling you?",
+        "That sounds challenging. Let's work through this together. What thoughts are going through your mind right now?",
         "Thank you for sharing. Have you noticed any patterns in when these feelings occur?",
-        "I'm here to support you. What coping strategies have helped you in the past?"
+        "I'm here to support you. What coping strategies have helped you with these felings in the past?"
     ]
     import random
     return random.choice(responses)
