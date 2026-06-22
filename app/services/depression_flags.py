@@ -90,9 +90,13 @@ class DepressionFlagService:
             try:
                 await self._send_threshold_notifications(user_id)
             except Exception as e:
-                logger.error("Notification failed for {user_id}:{e}")
-                await self.users_collection.update_one(
-                    {'id':user_id},{"$set": {"depression_threshold_notified_at": None}}
+                logger.error(f"Notification failed for {user_id}:{e}")
+                user_doc = await self.users_collection.find_one({"id": user_id})
+                saved_time = user_doc.get("depression_threshold_notified_at") if user_doc else None
+                if saved_time:
+                    await self.users_collection.update_one(
+                    {'id':user_id,"depression_threshold_notified_at": saved_time},
+                    {"$set": {"depression_threshold_notified_at": None}}
                 )
                 raise e
             status = await self.get_status(user_id)
