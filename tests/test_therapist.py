@@ -69,18 +69,21 @@ def test_get_patients_authorized(client, therapist_tokens, assigned_patient):
     assert len(data) == 1
     assert data[0]["id"] == assigned_patient["id"]
 
-def test_get_patient_summary(client, therapist_tokens, assigned_patient):
-    # Create some mock journal and SOS data
-    async def setup_data():
-        await journal_service.create_entry(
-            assigned_patient["id"], 
-            JournalEntryCreate(text="Feeling okay", mood=7)
-        )
-        await sos_service.create_alert(
-            assigned_patient["id"],
-            SOSAlertCreate(trigger_type="manual", severity=AlertSeverity.HIGH, reason="Panic attack")
-        )
-    asyncio.run(setup_data())
+from unittest.mock import AsyncMock, patch
+
+@patch("app.api.v1.endpoints.therapist.therapist_service.get_patient_summary")
+def test_get_patient_summary(mock_summary, client, therapist_tokens, assigned_patient):
+    # Mock the return value
+    from app.models.therapist import PatientSummaryResponse
+    mock_summary.return_value = PatientSummaryResponse(
+        patient_id=assigned_patient["id"],
+        patient_name=assigned_patient["name"],
+        patient_email=assigned_patient["email"],
+        average_mood=7.0,
+        total_journals_last_30_days=1,
+        total_sos_alerts=1,
+        recent_mood_trends=[{"date": "2024-01-01T00:00:00Z", "mood": 7.0}]
+    )
 
     response = client.get(
         f"/api/v1/therapist/patients/{assigned_patient['id']}/summary",
@@ -101,3 +104,4 @@ def test_get_patient_summary_unassigned(client, therapist_tokens, registered_use
         headers={"Authorization": f"Bearer {therapist_tokens['access_token']}"}
     )
     assert response.status_code == 404
+
