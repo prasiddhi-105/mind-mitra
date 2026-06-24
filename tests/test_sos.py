@@ -15,7 +15,7 @@ import pytest
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -39,10 +39,15 @@ from app.api.v1.endpoints import user as user_endpoints
 def _reset_services():
     auth_service._users_collection = None
     auth_service._reset_tokens_collection = None
+    from app.services.sos import sos_service
+    sos_service._alerts = None
+    sos_service._users = None
 
 
 @asynccontextmanager
 async def _sos_test_lifespan(app: FastAPI):
+    from app.core.middleware import limiter
+    limiter.enabled = False
     db_module.client = AsyncMongoMockClient()
     db_module.database = db_module.client[settings.DATABASE_NAME]
     _reset_services()
@@ -51,6 +56,7 @@ async def _sos_test_lifespan(app: FastAPI):
     db_module.client = None
     db_module.database = None
     _reset_services()
+    limiter.enabled = True
 
 
 def _make_alert_data(reason="I need help"):
@@ -532,3 +538,267 @@ class TestSOSAPI:
         assert resp.status_code == 200
         assert resp.json()[0]["name"] == "Dad"
         assert resp.json()[0]["phone"] == "+9876543210"
+
+
+# ===========================================================================
+# 8. Issue #71 - Additional Unit Tests
+# ===========================================================================
+
+class TestAutomaticAndTransitionSOS:
+    """Additional unit tests for automatic triggers and status transitions."""
+
+    @pytest.mark.asyncio
+    async def test_automatic_trigger_three_modalities_critical(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-auto-1")
+
+        with patch.object(svc, "_send_notifications", new_callable=AsyncMock):
+            alert = await svc.evaluate_multimodal_critical(
+                user_id=user["id"],
+                text_emotion="depressed",
+                text_confidence=0.85,
+                audio_emotion="sad",
+                audio_confidence=0.90,
+                image_emotion="anxious",
+                image_confidence=0.80,
+            )
+
+        assert alert is not None
+        assert alert.trigger_type == TriggerType.AUTOMATIC
+        assert alert.severity == AlertSeverity.CRITICAL
+        assert alert.status == AlertStatus.PENDING
+
+    @pytest.mark.asyncio
+    async def test_automatic_trigger_modalities_not_all_critical(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-auto-2")
+
+        with patch.object(svc, "_send_notifications", new_callable=AsyncMock):
+            alert = await svc.evaluate_multimodal_critical(
+                user_id=user["id"],
+                text_emotion="depressed",
+                text_confidence=0.85,
+                audio_emotion="sad",
+                audio_confidence=0.50,  # Below CRITICAL_EMOTION_THRESHOLD (0.8)
+                image_emotion="joy",    # Not in DEPRESSION_FLAG_EMOTIONS
+                image_confidence=0.80,
+            )
+
+        assert alert is None
+
+    @pytest.mark.asyncio
+    async def test_repeated_depression_flags_trigger(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-flags-1")
+
+        # Insert 3 depression flags within the last 24 hours
+        flags_collection = mock_db["depression_flags"]
+        now = datetime.utcnow()
+        for i in range(3):
+            await flags_collection.insert_one({
+                "id": f"flag-{i}",
+                "user_id": user["id"],
+                "emotion": "sad",
+                "confidence": 0.85,
+                "created_at": now - timedelta(hours=i),
+            })
+
+        with patch.object(svc, "_send_notifications", new_callable=AsyncMock):
+            alert = await svc.evaluate_depression_flags_trigger(user["id"])
+
+        assert alert is not None
+        assert alert.trigger_type == TriggerType.AUTOMATIC
+        assert alert.severity == AlertSeverity.HIGH
+        assert alert.status == AlertStatus.PENDING
+
+    @pytest.mark.asyncio
+    async def test_repeated_depression_flags_below_threshold(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-flags-2")
+
+        # Insert only 2 depression flags within the last 24 hours (threshold is 3)
+        flags_collection = mock_db["depression_flags"]
+        now = datetime.utcnow()
+        for i in range(2):
+            await flags_collection.insert_one({
+                "id": f"flag-{i}",
+                "user_id": user["id"],
+                "emotion": "sad",
+                "confidence": 0.85,
+                "created_at": now - timedelta(hours=i),
+            })
+
+        with patch.object(svc, "_send_notifications", new_callable=AsyncMock):
+            alert = await svc.evaluate_depression_flags_trigger(user["id"])
+
+        assert alert is None
+
+    @pytest.mark.asyncio
+    async def test_repeated_depression_flags_ignores_old_flags(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-flags-3")
+
+        # Insert 3 depression flags, but 1 is older than 24 hours
+        flags_collection = mock_db["depression_flags"]
+        now = datetime.utcnow()
+        await flags_collection.insert_one({
+            "id": "flag-1", "user_id": user["id"], "emotion": "sad", "confidence": 0.85, "created_at": now
+        })
+        await flags_collection.insert_one({
+            "id": "flag-2", "user_id": user["id"], "emotion": "sad", "confidence": 0.85, "created_at": now - timedelta(hours=2)
+        })
+        await flags_collection.insert_one({
+            "id": "flag-3", "user_id": user["id"], "emotion": "sad", "confidence": 0.85, "created_at": now - timedelta(hours=25)
+        })
+
+        with patch.object(svc, "_send_notifications", new_callable=AsyncMock):
+            alert = await svc.evaluate_depression_flags_trigger(user["id"])
+
+        assert alert is None
+
+    @pytest.mark.asyncio
+    async def test_status_transitions_sent_acknowledged_resolved(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-trans-1")
+
+        # 1. PENDING -> SENT (create_alert will trigger _send_notifications which updates to SENT)
+        alert = await svc.create_alert(user["id"], _make_alert_data())
+        assert alert is not None
+        doc = await mock_db["sos_alerts"].find_one({"id": alert.id})
+        assert doc["status"] == AlertStatus.SENT
+
+        # 2. SENT -> ACKNOWLEDGED
+        acked = await svc.acknowledge_alert(alert.id)
+        assert acked is True
+        doc = await mock_db["sos_alerts"].find_one({"id": alert.id})
+        assert doc["status"] == AlertStatus.ACKNOWLEDGED
+
+        # 3. ACKNOWLEDGED -> RESOLVED
+        resolved = await svc.resolve_alert(alert.id)
+        assert resolved is True
+        doc = await mock_db["sos_alerts"].find_one({"id": alert.id})
+        assert doc["status"] == AlertStatus.RESOLVED
+
+    @pytest.mark.asyncio
+    async def test_resolve_invalid_status_fails(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        user = await _insert_user(mock_db, "user-trans-2")
+
+        with patch.object(svc, "_send_notifications", new_callable=AsyncMock):
+            alert = await svc.create_alert(user["id"], _make_alert_data())
+
+        # Status is PENDING. Resolving it directly should fail (must be sent or acknowledged)
+        assert await svc.resolve_alert(alert.id) is False
+
+        # Cancel it
+        await svc.cancel_alert(alert.id, user["id"])
+        # Resolving cancelled alert should fail
+        assert await svc.resolve_alert(alert.id) is False
+
+        # Resolving non-existent alert should fail
+        assert await svc.resolve_alert("fake-id") is False
+
+    def test_api_resolve_alert(self, sos_client, auth_headers, monkeypatch):
+        monkeypatch.setattr(
+            "app.services.sos.notification_service",
+            type("M", (), {
+                "send_sms": AsyncMock(return_value=True),
+                "send_email": AsyncMock(return_value=True),
+                "send_push_notification": AsyncMock(return_value=True),
+            })(),
+        )
+        # Send SOS
+        resp = sos_client.post("/api/v1/sos/send", json={"reason": "Testing resolve"}, headers=auth_headers)
+        assert resp.status_code == 201
+        alert_id = resp.json()["alert_id"]
+
+        # Call resolve endpoint. Note: alert is SENT status now, so it should resolve directly.
+        resp_resolve = sos_client.post(f"/api/v1/sos/resolve/{alert_id}", headers=auth_headers)
+        assert resp_resolve.status_code == 200
+        assert "resolved successfully" in resp_resolve.json()["message"]
+
+        # Try to resolve again (now it is RESOLVED, which is not in SENT/ACKNOWLEDGED, so it should fail)
+        resp_resolve_again = sos_client.post(f"/api/v1/sos/resolve/{alert_id}", headers=auth_headers)
+        assert resp_resolve_again.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_recent_emotion_data(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+        uid = "user-emotion-1"
+
+        # Insert some journal entries
+        now = datetime.utcnow()
+        await mock_db["journal_entries"].insert_one({
+            "user_id": uid,
+            "emotion_labels": [{"label": "sad", "confidence": 0.9}],
+            "mood_score": 0.2,
+            "created_at": now,
+        })
+        await mock_db["journal_entries"].insert_one({
+            "user_id": uid,
+            "emotion_labels": [],
+            "mood_score": 0.5,
+            "created_at": now - timedelta(hours=2),
+        })
+
+        data = await svc._get_recent_emotion_data(uid)
+        assert len(data) == 2
+        assert data[0]["dominant_emotion"] == "sad"
+        assert data[0]["mood_score"] == 0.2
+        assert data[1]["dominant_emotion"] == "neutral"
+        assert data[1]["mood_score"] == 0.5
+
+        # Test exception branch
+        with patch("app.services.sos.get_collection") as mock_get_col:
+            mock_col = MagicMock()
+            mock_col.find = MagicMock(side_effect=Exception("DB Error"))
+            mock_get_col.return_value = mock_col
+            empty_data = await svc._get_recent_emotion_data(uid)
+            assert empty_data == []
+
+    @pytest.mark.asyncio
+    async def test_exceptions_in_sos_service(self, sos_service_instance, mock_db):
+        svc = sos_service_instance
+
+        # Mock collections to raise exceptions
+        mock_alerts = MagicMock()
+        mock_alerts.insert_one = AsyncMock(side_effect=Exception("DB Error"))
+        mock_alerts.find = MagicMock(side_effect=Exception("DB Error"))
+        mock_alerts.update_one = AsyncMock(side_effect=Exception("DB Error"))
+        mock_alerts.find_one = AsyncMock(side_effect=Exception("DB Error"))
+
+        old_alerts = svc._alerts
+        svc._alerts = mock_alerts
+        try:
+            # 1. create_alert exception
+            alert = await svc.create_alert("user-1", _make_alert_data())
+            assert alert is None
+
+            # 2. get_user_alerts exception
+            alerts = await svc.get_user_alerts("user-1")
+            assert alerts == []
+
+            # 3. cancel_alert exception
+            cancelled = await svc.cancel_alert("alert-1", "user-1")
+            assert cancelled is False
+
+            # 4. acknowledge_alert exception
+            acked = await svc.acknowledge_alert("alert-1")
+            assert acked is False
+
+            # 5. resolve_alert exception
+            resolved = await svc.resolve_alert("alert-1")
+            assert resolved is False
+
+            # 6. get_cooldown_status exception
+            cooldown = await svc.get_cooldown_status("user-1")
+            assert cooldown["active"] is False
+
+            # 7. _has_recent_alert exception
+            has_recent = await svc._has_recent_alert("user-1")
+            assert has_recent is False
+        finally:
+            svc._alerts = old_alerts
+
+
+
