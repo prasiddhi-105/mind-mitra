@@ -35,9 +35,7 @@ tags_metadata = [
     {
         "name": "journal",
         "description": "Journal management endpoints. These routes are protected and require authentication."
-    },
-    {
-
+    }
 ]
  
 

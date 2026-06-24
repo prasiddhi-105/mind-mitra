@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     
+    # Rate Limiting
+    RATE_LIMIT_PER_MINUTE: int = 10
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

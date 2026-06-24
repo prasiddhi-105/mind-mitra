@@ -112,8 +112,22 @@ def _get_storage_uri():
     except Exception:
         return "memory://"
 
+def get_user_rate_limit_key(request: Request) -> str:
+    """Identify rate limit key by authenticated user, or fallback to client IP."""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from app.services.auth import auth_service
+            token_data = auth_service.verify_token(token)
+            if token_data and token_data.user_id:
+                return f"user:{token_data.user_id}"
+        except Exception:
+            pass
+    return get_remote_address(request)
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_user_rate_limit_key,
     storage_uri=_get_storage_uri(),
     default_limits=["200/minute"]
 )
