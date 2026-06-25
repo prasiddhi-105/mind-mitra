@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import uuid
 
-from app.models.sos import SOSAlert, SOSAlertCreate, AlertStatus, AlertSeverity
+from app.models.sos import SOSAlert, SOSAlertCreate, AlertStatus, AlertSeverity, TriggerType
 from app.models.user import User, EmergencyContact
 from app.core.database import get_collection
 from app.core.config import settings
@@ -297,6 +297,77 @@ class SOSService:
         except Exception as e:
             logger.error(f"Error getting recent emotion data: {e}")
             return []
+
+    async def resolve_alert(self, alert_id: str) -> bool:
+        """Resolve an active or acknowledged SOS alert."""
+        try:
+            result = await self.alerts_collection.update_one(
+                {
+                    "id": alert_id,
+                    "status": {"$in": [AlertStatus.SENT, AlertStatus.ACKNOWLEDGED]},
+                },
+                {
+                    "$set": {
+                        "status": AlertStatus.RESOLVED,
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error resolving alert: {e}")
+            return False
+
+    async def evaluate_multimodal_critical(
+        self,
+        user_id: str,
+        text_emotion: str,
+        text_confidence: float,
+        audio_emotion: str,
+        audio_confidence: float,
+        image_emotion: str,
+        image_confidence: float,
+    ) -> Optional[SOSAlert]:
+        """Trigger automatic SOS alert when all 3 modalities are critical (negative emotion with confidence >= threshold)."""
+        critical_emotions = settings.DEPRESSION_FLAG_EMOTIONS
+        threshold = settings.CRITICAL_EMOTION_THRESHOLD
+
+        is_text_critical = text_emotion in critical_emotions and text_confidence >= threshold
+        is_audio_critical = audio_emotion in critical_emotions and audio_confidence >= threshold
+        is_image_critical = image_emotion in critical_emotions and image_confidence >= threshold
+
+        if is_text_critical and is_audio_critical and is_image_critical:
+            alert_data = SOSAlertCreate(
+                trigger_type=TriggerType.AUTOMATIC,
+                severity=AlertSeverity.CRITICAL,
+                reason="Automatic SOS alert triggered: Critical emotional states detected across all three modalities (Text, Audio, Facial).",
+                emotion_data={
+                    "text": {"emotion": text_emotion, "confidence": text_confidence},
+                    "audio": {"emotion": audio_emotion, "confidence": audio_confidence},
+                    "image": {"emotion": image_emotion, "confidence": image_confidence},
+                }
+            )
+            return await self.create_alert(user_id, alert_data)
+        return None
+
+    async def evaluate_depression_flags_trigger(self, user_id: str) -> Optional[SOSAlert]:
+        """Trigger automatic SOS alert if depression flag count meets or exceeds the threshold within 24 hours."""
+        flags_collection = get_collection("depression_flags")
+        window_start = datetime.utcnow() - timedelta(hours=settings.DEPRESSION_FLAG_WINDOW_HOURS)
+        flag_count = await flags_collection.count_documents({
+            "user_id": user_id,
+            "created_at": {"$gte": window_start},
+        })
+
+        if flag_count >= settings.DEPRESSION_FLAG_THRESHOLD:
+            alert_data = SOSAlertCreate(
+                trigger_type=TriggerType.AUTOMATIC,
+                severity=AlertSeverity.HIGH,
+                reason=f"Automatic SOS alert triggered: Repeated depression flags ({flag_count}) detected within 24 hours.",
+                emotion_data={"depression_flag_count": flag_count}
+            )
+            return await self.create_alert(user_id, alert_data)
+        return None
 
 
 # Global SOS service instance
